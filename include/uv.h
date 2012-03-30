@@ -178,6 +178,7 @@ typedef struct uv_tcp_s uv_tcp_t;
 typedef struct uv_udp_s uv_udp_t;
 typedef struct uv_pipe_s uv_pipe_t;
 typedef struct uv_tty_s uv_tty_t;
+typedef struct uv_poll_s uv_poll_t;
 typedef struct uv_timer_s uv_timer_t;
 typedef struct uv_prepare_s uv_prepare_t;
 typedef struct uv_check_s uv_check_t;
@@ -277,6 +278,8 @@ typedef void (*uv_connect_cb)(uv_connect_t* req, int status);
 typedef void (*uv_shutdown_cb)(uv_shutdown_t* req, int status);
 typedef void (*uv_connection_cb)(uv_stream_t* server, int status);
 typedef void (*uv_close_cb)(uv_handle_t* handle);
+typedef void (*uv_poll_cb)(uv_poll_t* handle, int status, int readable,
+    int writable);
 typedef void (*uv_timer_cb)(uv_timer_t* handle, int status);
 /* TODO: do these really need a status argument? */
 typedef void (*uv_async_cb)(uv_async_t* handle, int status);
@@ -885,6 +888,40 @@ UV_EXTERN void uv_pipe_connect(uv_connect_t* req, uv_pipe_t* handle,
  * is waiting for connections.
  */
 UV_EXTERN void uv_pipe_pending_instances(uv_pipe_t* handle, int count);
+
+
+/*
+ * uv_poll_t is a subclass of uv_handle_t.
+ *
+ * The uv_poll watcher is used to watch file descriptors for readability and
+ * writability, similar to the purpose of poll(2). The purpose of this is to
+ * enable integrating external libraries that rely on on the event loop to
+ * signal it about the socket status changes, like c-ares or libssh2. Using
+ * uv_poll_t for any other other purpose is not recommended; uv_tcp_t, uv_udp_t
+ * etc. provide an implementation that is faster and more scalable than what
+ * you can achieve with uv_poll_t, especially on Windows. Note that on windows
+ * only sockets can be polled with uv_poll. On unix any file descriptor that
+ * would be accepted by poll(2) can be used with uv_poll.
+ */
+struct uv_poll_s {
+  UV_HANDLE_FIELDS
+  UV_POLL_PRIVATE_FIELDS
+};
+
+/* Initialize the poll watcher using a file descriptor. */
+UV_EXTERN int uv_poll_init(uv_poll_t* handle, int fd);
+
+/* Initialize the poll watcher using a socket descriptor. On unix this is */
+/* identical to uv_poll_init. On windows it takes a SOCKET handle. */
+UV_EXTERN int uv_poll_init_socket(uv_poll_t* handle,
+    uv_platform_socket_t sock);
+
+/* Starts polling the file descriptor. */
+UV_EXTERN int uv_poll_start(uv_poll_t*, int readable, int writable,
+    uv_poll_cb cb);
+
+/* Stops polling the file descriptor. */
+UV_EXTERN int uv_poll_stop(uv_poll_t*);
 
 
 /*
