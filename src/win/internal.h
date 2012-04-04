@@ -63,7 +63,10 @@ void uv_process_timers(uv_loop_t* loop);
 #define UV_HANDLE_UV_ALLOCED                    0x00010000
 #define UV_HANDLE_SYNC_BYPASS_IOCP              0x00020000
 #define UV_HANDLE_ZERO_READ                     0x00040000
+/* Used only uv_tty_t handles. */
 #define UV_HANDLE_TTY_RAW                       0x00080000
+/* Used only uv_poll_t handles. */
+#define UV_HANDLE_POLL_CANCELED                 0x00080000
 #define UV_HANDLE_EMULATE_IOCP                  0x00100000
 #define UV_HANDLE_NON_OVERLAPPED_PIPE           0x00200000
 #define UV_HANDLE_TTY_SAVED_POSITION            0x00400000
@@ -214,6 +217,15 @@ void uv_process_tty_connect_req(uv_loop_t* loop, uv_tty_t* handle,
     uv_connect_t* req);
 
 void uv_tty_endgame(uv_loop_t* loop, uv_tty_t* handle);
+
+
+/*
+ * Poll watchers
+ */
+void uv_poll_endgame(uv_loop_t* loop, uv_poll_t* handle);
+
+void uv_process_poll_req(uv_loop_t* loop, uv_poll_t* handle,
+    uv_poll_req_t* req);
 
 
 /*

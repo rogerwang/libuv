@@ -115,8 +115,7 @@ typedef int (WSAAPI* LPFN_WSARECV)
              LPDWORD bytes,
              LPDWORD flags,
              LPWSAOVERLAPPED overlapped,
-             LPWSAOVERLAPPED_COMPLETION_ROUTINE
-             completion_routine);
+             LPWSAOVERLAPPED_COMPLETION_ROUTINE completion_routine);
 
 typedef int (WSAAPI* LPFN_WSARECVFROM)
             (SOCKET socket,
@@ -129,6 +128,19 @@ typedef int (WSAAPI* LPFN_WSARECVFROM)
              LPWSAOVERLAPPED overlapped,
              LPWSAOVERLAPPED_COMPLETION_ROUTINE completion_routine);
 
+typedef struct _AFD_POLL_HANDLE_INFO {
+  HANDLE Handle;
+  ULONG Events;
+  NTSTATUS Status;
+} AFD_POLL_HANDLE_INFO, *PAFD_POLL_HANDLE_INFO;
+	 
+typedef struct _AFD_POLL_INFO {
+  LARGE_INTEGER Timeout;
+  ULONG NumberOfHandles;
+  ULONG Exclusive;
+  AFD_POLL_HANDLE_INFO Handles[1];
+} AFD_POLL_INFO, *PAFD_POLL_INFO;
+
 
 /**
  * It should be possible to cast uv_buf_t[] to WSABUF[]
@@ -140,6 +152,8 @@ typedef struct uv_buf_t {
 } uv_buf_t;
 
 typedef int uv_file;
+
+typedef SOCKET uv_platform_socket_t;
 
 typedef HANDLE uv_thread_t;
 
@@ -214,7 +228,8 @@ RB_HEAD(uv_timer_tree_s, uv_timer_s);
   UV_PROCESS_EXIT,                        \
   UV_PROCESS_CLOSE,                       \
   UV_UDP_RECV,                            \
-  UV_FS_EVENT_REQ
+  UV_FS_EVENT_REQ,                        \
+  UV_POLL_REQ
 
 #define UV_REQ_PRIVATE_FIELDS             \
   union {                                 \
@@ -355,6 +370,14 @@ RB_HEAD(uv_timer_tree_s, uv_timer_s);
   unsigned short ansi_csi_argv[4];        \
   COORD saved_position;                   \
   WORD saved_attributes;
+
+#define UV_POLL_PRIVATE_FIELDS            \
+  SOCKET socket;                          \
+  int events;                             \
+  int submitted_events;                   \
+  uv_poll_cb poll_cb;                     \
+  uv_req_t poll_req;                      \
+  AFD_POLL_INFO afd_poll_info;
 
 #define UV_TIMER_PRIVATE_FIELDS           \
   RB_ENTRY(uv_timer_s) tree_entry;        \

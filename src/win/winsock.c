@@ -468,3 +468,47 @@ int WSAAPI uv_wsarecvfrom_workaround(SOCKET socket, WSABUF* buffers,
     return SOCKET_ERROR;
   }
 }
+
+
+int WSAAPI uv_msafd_poll(AFD_POLL_INFO* info, OVERLAPPED* overlapped) {
+  IO_STATUS_BLOCK iosb;
+  IO_STATUS_BLOCK* iosb_ptr;
+  HANDLE event = NULL;
+  void* apc_context;
+  NTSTATUS status;
+
+  if (overlapped != NULL) {
+    iosb_ptr = (IO_STATUS_BLOCK*) &overlapped->Internal;
+    event = overlapped->hEvent;
+
+    /* Do not report iocp completion if hEvent is tagged. */
+    if ((uintptr_t) event & 1) {
+      event = HANDLE((uintptr_t) event & ~(uintptr_t) 1);
+      apc_context = NULL;
+    } else {
+      apc_context = overlapped;
+    }
+
+  } else {
+    iosb_ptr = &iosb;
+    event = CreateEvent(NULL, FALSE, FALSE, );
+    if (event == NULL) {
+      return SOCKET_ERROR;
+    }
+    apc_context = NULL;
+  }
+
+  iosb_ptr->Status = STATUS_PENDING;
+  status = pNtDeviceIoControlFile(info->Handles[0].Handle,
+                                  event,
+                                  NULL,
+                                  apc_context,
+                                  iosb_ptr,
+                                  IOCTL_AFD_POLL,
+                                  info,
+                                  sizeof *info,
+                                  info,
+                                  sizeof *info);
+
+  if (status == 
+}

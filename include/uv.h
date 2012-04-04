@@ -140,6 +140,7 @@ typedef enum {
   UV_UDP,
   UV_NAMED_PIPE,
   UV_TTY,
+  UV_POLL,
   UV_FILE,
   UV_TIMER,
   UV_PREPARE,
@@ -278,8 +279,7 @@ typedef void (*uv_connect_cb)(uv_connect_t* req, int status);
 typedef void (*uv_shutdown_cb)(uv_shutdown_t* req, int status);
 typedef void (*uv_connection_cb)(uv_stream_t* server, int status);
 typedef void (*uv_close_cb)(uv_handle_t* handle);
-typedef void (*uv_poll_cb)(uv_poll_t* handle, int status, int readable,
-    int writable);
+typedef void (*uv_poll_cb)(uv_poll_t* handle, int status, int events);
 typedef void (*uv_timer_cb)(uv_timer_t* handle, int status);
 /* TODO: do these really need a status argument? */
 typedef void (*uv_async_cb)(uv_async_t* handle, int status);
@@ -908,20 +908,36 @@ struct uv_poll_s {
   UV_POLL_PRIVATE_FIELDS
 };
 
+enum uv_poll_event {
+  UV_READABLE = 1,
+  UV_WRITABLE = 2
+};
+
 /* Initialize the poll watcher using a file descriptor. */
-UV_EXTERN int uv_poll_init(uv_poll_t* handle, int fd);
+UV_EXTERN int uv_poll_init(uv_loop_t* loop, uv_poll_t* handle, int fd);
 
 /* Initialize the poll watcher using a socket descriptor. On unix this is */
 /* identical to uv_poll_init. On windows it takes a SOCKET handle. */
-UV_EXTERN int uv_poll_init_socket(uv_poll_t* handle,
-    uv_platform_socket_t sock);
+UV_EXTERN int uv_poll_init_socket(uv_loop_t* loop, uv_poll_t* handle,
+    uv_platform_socket_t socket);
 
-/* Starts polling the file descriptor. */
-UV_EXTERN int uv_poll_start(uv_poll_t*, int readable, int writable,
-    uv_poll_cb cb);
+/* 
+ * Starts polling the file descriptor. `events` is a bitmask consisting made up
+ * of UV_READABLE and UV_WRITABLE. Setting `events` to 0 means stops the poll
+ * watcher. As soon as an event is detected the callback will be called with
+ * `status` set to 0, and the detected events set en the `events` field.
+ * If an error happens while polling status will be set to -1 and the error
+ * code can be retrieved with uv_last_error. The user should not close the
+ * socket while polling is in progress. Should we catch the user doing this,
+ * the poll callback will be called with an error status, and the UV_EINTR
+ * will be reported. Calling uv_poll_start on an uv_poll watcher that is
+ * already active is fine; doing so will update the events mask that is being
+ * watched for.
+ */
+UV_EXTERN int uv_poll_start(uv_poll_t* handle, int events, uv_poll_cb cb);
 
 /* Stops polling the file descriptor. */
-UV_EXTERN int uv_poll_stop(uv_poll_t*);
+UV_EXTERN int uv_poll_stop(uv_poll_t* handle);
 
 
 /*
@@ -1510,6 +1526,7 @@ struct uv_counters_s {
   uint64_t udp_init;
   uint64_t pipe_init;
   uint64_t tty_init;
+  uint64_t poll_init;
   uint64_t prepare_init;
   uint64_t check_init;
   uint64_t idle_init;

@@ -125,6 +125,10 @@ void uv_close(uv_handle_t* handle, uv_close_cb cb) {
       }
       return;
 
+    case UV_POLL:
+      uv_poll_close(handle->loop, (uv_poll_t*) handle);
+      return;
+
     case UV_TIMER:
       uv_timer_stop((uv_timer_t*)handle);
       uv_want_endgame(loop, handle);
@@ -201,6 +205,10 @@ void uv_process_endgames(uv_loop_t* loop) {
 
       case UV_UDP:
         uv_udp_endgame(loop, (uv_udp_t*) handle);
+        break;
+
+      case UV_POLL:
+        uv_poll_endgame(loop, (uv_poll_t*) handle);
         break;
 
       case UV_TIMER:
