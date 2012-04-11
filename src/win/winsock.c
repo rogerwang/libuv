@@ -476,6 +476,7 @@ int WSAAPI uv_msafd_poll(AFD_POLL_INFO* info, OVERLAPPED* overlapped) {
   HANDLE event = NULL;
   void* apc_context;
   NTSTATUS status;
+  DWORD error;
 
   if (overlapped != NULL) {
     iosb_ptr = (IO_STATUS_BLOCK*) &overlapped->Internal;
@@ -483,7 +484,7 @@ int WSAAPI uv_msafd_poll(AFD_POLL_INFO* info, OVERLAPPED* overlapped) {
 
     /* Do not report iocp completion if hEvent is tagged. */
     if ((uintptr_t) event & 1) {
-      event = HANDLE((uintptr_t) event & ~(uintptr_t) 1);
+      event = (HANDLE)((uintptr_t) event & ~(uintptr_t) 1);
       apc_context = NULL;
     } else {
       apc_context = overlapped;
@@ -491,7 +492,7 @@ int WSAAPI uv_msafd_poll(AFD_POLL_INFO* info, OVERLAPPED* overlapped) {
 
   } else {
     iosb_ptr = &iosb;
-    event = CreateEvent(NULL, FALSE, FALSE, );
+    event = CreateEvent(NULL, FALSE, FALSE, NULL);
     if (event == NULL) {
       return SOCKET_ERROR;
     }
@@ -510,5 +511,25 @@ int WSAAPI uv_msafd_poll(AFD_POLL_INFO* info, OVERLAPPED* overlapped) {
                                   info,
                                   sizeof *info);
 
-  if (status == 
+  switch (status) {
+    case STATUS_SUCCESS:
+      error = ERROR_SUCCESS;
+      break;
+
+    case STATUS_PENDING:
+      error = WSA_IO_PENDING;
+      break;
+
+    default:
+      error = uv_ntstatus_to_winsock_error(status);
+      break;
+  }
+
+  WSASetLastError(error);
+
+  if (error == ERROR_SUCCESS) {
+    return 0;
+  } else {
+    return SOCKET_ERROR;
+  }
 }

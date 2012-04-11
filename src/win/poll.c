@@ -19,6 +19,7 @@
  * IN THE SOFTWARE.
  */
 
+
 #include <assert.h>
 #include <io.h>
 
@@ -26,18 +27,25 @@
 #include "../uv-common.h"
 #include "internal.h"
 
+typedef struct uv_single_fd_set_s {
+  unsigned int fd_count;
+  SOCKET fd_array[1];
+} uv_single_fd_set_t;
+
 
 int uv_poll_init(uv_loop_t* loop, uv_poll_t* handle, int fd) {
   return uv_poll_init_socket(loop, handle, (SOCKET) _get_osfhandle(fd));
 }
 
+
 int uv_poll_init_socket(uv_loop_t* loop, uv_poll_t* handle,
     uv_platform_socket_t socket) {
   handle->type = UV_POLL;
-  handle->socket = INVALID_SOCKET;
+  handle->socket = socket;
   handle->loop = loop;
   handle->flags = 0;
   handle->events = 0;
+  handle->submitted_events = 0;
 
   uv_req_init(loop, (uv_req_t*) &(handle->poll_req));
   handle->poll_req.type = UV_POLL_REQ;
@@ -48,14 +56,14 @@ int uv_poll_init_socket(uv_loop_t* loop, uv_poll_t* handle,
   loop->counters.handle_init++;
   loop->counters.poll_init++;
 
- /* TODO: check if the socket is an msafd protocol. */
+  /* TODO: check if the socket is an msafd protocol. */
 
 
   /* Try to associate with IOCP */
   if (CreateIoCompletionPort((HANDLE) socket,
-                             loop->iocp,
-                             (ULONG_PTR) socket,
-                             0) == NULL) {
+                              loop->iocp,
+                              (ULONG_PTR) socket,
+                              0) == NULL) {
     /* Association failed. */
     /* TODO: Use fallback mode. */
     uv_fatal_error(GetLastError(), "CreateIoCompletionPort");
@@ -81,6 +89,8 @@ static void uv__poll_submit_poll_request(uv_loop_t* loop, uv_poll_t* handle) {
   if (handle->events & UV_WRITABLE)
     handle->afd_poll_info.Handles[0].Events |= AFD_POLL_SEND;
 
+  memset(&req->overlapped, 0, sizeof req->overlapped);
+
   result = uv_msafd_poll(&handle->afd_poll_info, &req->overlapped);
   if (result != 0) {
     /* Queue this req, reporting an error. */
@@ -88,6 +98,72 @@ static void uv__poll_submit_poll_request(uv_loop_t* loop, uv_poll_t* handle) {
   }
 
   handle->submitted_events = handle->events;
+}
+
+
+static void uv__slow_poll_submit_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
+  /* This function never fails. If an error occurs, it will queue a */
+  /* completed req that reports an error. So we can safely update the */
+  /* submitted_events field already. */
+  handle->submitted_events = handle->events;  
+  
+  /* This field will be used to report socket state when WSAEventSelect is */
+  /* bypassed. */
+  handle->select_events = 0;
+
+  /* Because WSAEventSelect is edge-triggered wrt writability, we'll use */
+  /* select() to find out if the socket is already writable. */
+  uv_single_fd_set_t rfds, wfds, efds;
+  struct timeval timeout = {0, 0};
+  int r;
+
+  if (handle->events & FD_WRITE) {
+    wfds.fd_count = 1;
+    wfds.fd_array[0] = handle->socket;
+    efds.fd_count = 1;
+    efds.fd_array[0] = handle->socket;
+  } else {
+    wfds.fd_count = 0;
+    efds.fd_count = 0;
+  }
+
+  if (handle->events & FD_READ) {
+    rfds.fd_count = 1;
+    rfds.fd_array[0] = handle->socket;
+  } else {
+    rfds.fd_count =- 0;
+  }
+
+  r = select(1, (fd_set*) &rfds, (fd_set*) &wfds, (fd_set*) &efds, &timeout);
+  if (r == SOCKET_ERROR) {
+    /* Queue this req, reporting an error. */
+    SET_REQ_ERROR(&handle->poll_req, WSAGetLastError());
+    return;
+  }
+
+  if (r > 0) { 
+    if (rfds.fd_count > 0) {
+      assert(rfds.fd_count == 1);
+      assert(rfds.fd_array[0] == handle->socket);
+      handle->select_events |= FD_READ;
+    }
+
+    if (wfds.fd_count > 0) {
+      assert(wfds.fd_count == 1);
+      assert(wfds.fd_array[0] == handle->socket);
+      handle->select_events |= FD_WRITE;
+    } else if (efds.fd_count > 0) {
+      assert(efds.fd_count == 1);
+      assert(efds.fd_array[0] == handle->socket);
+      handle->select_events |= FD_WRITE;
+    }
+      
+    assert(handle->select_events != 0);
+    SET_REQ_SUCCESS(&handle->poll_req);
+    return;
+  }
+  
+
 }
 
 
@@ -109,6 +185,8 @@ static int uv__poll_pushout_poll_request(uv_loop_t* loop, uv_poll_t* handle) {
     uv__set_sys_error(loop, WSAGetLastError());
     return -1;
   }
+
+  handle->flags |= UV_HANDLE_POLL_CANCELED;
 
   return 0;
 }
@@ -167,16 +245,17 @@ int uv_poll_start(uv_poll_t* handle, int events, uv_poll_cb cb) {
   }
 
   handle->poll_cb = cb;
+  return 0;
 }
 
 
 void uv_process_poll_req(uv_loop_t* loop, uv_poll_t* handle, uv_req_t* req) {
   handle->submitted_events = 0;
 
-  /* Report an error unless the select was just interrupted by poll. */
+  /* Report an error unless the select was just interrupted. */
   if (!REQ_SUCCESS(req)) {
     DWORD error = GET_REQ_SOCK_ERROR(req);
-    if (error != WSAEINTR) {
+    if (error != WSAEINTR && handle->events != 0) {
       handle->events = 0;
       uv__set_sys_error(loop, error);
       handle->poll_cb(handle, -1, 0);
@@ -190,17 +269,16 @@ void uv_process_poll_req(uv_loop_t* loop, uv_poll_t* handle, uv_req_t* req) {
       reported_events |= UV_WRITABLE;
     }
 
-    if (reported_events & handle->events) {
+    if (reported_events & handle->events != 0) {
       handle->poll_cb(handle, 0, reported_events);
     }
   }
 
- out:
   if (handle->events != 0 &&
       handle->submitted_events == 0) {
     uv__poll_submit_poll_request(loop, handle);
   } else if ((handle->flags & UV_HANDLE_CLOSING) &&
-              !handle->submitted_events) {
+             !handle->submitted_events) {
     uv_want_endgame(loop, (uv_handle_t*) handle);
   }
 }

@@ -225,7 +225,7 @@ void uv_tty_endgame(uv_loop_t* loop, uv_tty_t* handle);
 void uv_poll_endgame(uv_loop_t* loop, uv_poll_t* handle);
 
 void uv_process_poll_req(uv_loop_t* loop, uv_poll_t* handle,
-    uv_poll_req_t* req);
+    uv_req_t* req);
 
 
 /*
@@ -345,6 +345,8 @@ int WSAAPI uv_wsarecvfrom_workaround(SOCKET socket, WSABUF* buffers,
     DWORD buffer_count, DWORD* bytes, DWORD* flags, struct sockaddr* addr,
     int* addr_len, WSAOVERLAPPED *overlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE completion_routine);
+
+int WSAAPI uv_msafd_poll(AFD_POLL_INFO* info, OVERLAPPED* overlapped);
 
 /* Whether ipv6 is supported */
 extern int uv_allow_ipv6;

@@ -377,7 +377,16 @@ RB_HEAD(uv_timer_tree_s, uv_timer_s);
   int submitted_events;                   \
   uv_poll_cb poll_cb;                     \
   uv_req_t poll_req;                      \
-  AFD_POLL_INFO afd_poll_info;
+  union {                                 \
+    /* Used in fast mode */               \
+    struct {                              \
+      AFD_POLL_INFO afd_poll_info;        \
+    };                                    \
+    /* Used in slow (fallback) mode */    \
+    struct {                              \
+      int select_events;                  \
+    };                                    \
+  };
 
 #define UV_TIMER_PRIVATE_FIELDS           \
   RB_ENTRY(uv_timer_s) tree_entry;        \
