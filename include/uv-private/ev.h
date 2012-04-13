@@ -40,6 +40,25 @@
 #ifndef EV_H_
 #define EV_H_
 
+
+#if defined(COMPONENT_BUILD)
+#if defined(WIN32)
+
+#if defined(LIBUV_IMPLEMENTATION)
+#define LIBUV_EXPORT __declspec(dllexport)
+#else
+#define LIBUV_EXPORT __declspec(dllimport)
+#endif
+
+#else
+#define LIBUV_EXPORT __attribute__((visibility("default")))
+#endif
+
+#else
+#define LIBUV_EXPORT
+#endif
+
+
 #ifdef __cplusplus
 # define EV_CPP(x) x
 #else
@@ -515,15 +534,15 @@ enum {
 };
 
 #if EV_PROTOTYPES
-int ev_version_major (void);
-int ev_version_minor (void);
+LIBUV_EXPORT int ev_version_major (void);
+LIBUV_EXPORT int ev_version_minor (void);
 
-unsigned int ev_supported_backends (void);
-unsigned int ev_recommended_backends (void);
-unsigned int ev_embeddable_backends (void);
+LIBUV_EXPORT unsigned int ev_supported_backends (void);
+LIBUV_EXPORT unsigned int ev_recommended_backends (void);
+LIBUV_EXPORT unsigned int ev_embeddable_backends (void);
 
-ev_tstamp ev_time (void);
-void ev_sleep (ev_tstamp delay); /* sleep for a while */
+LIBUV_EXPORT ev_tstamp ev_time (void);
+LIBUV_EXPORT void ev_sleep (ev_tstamp delay); /* sleep for a while */
 
 /* Sets the allocation function to use, works like realloc.
  * It is used to allocate and free memory.
@@ -531,24 +550,24 @@ void ev_sleep (ev_tstamp delay); /* sleep for a while */
  * or take some potentially destructive action.
  * The default is your system realloc function.
  */
-void ev_set_allocator (void *(*cb)(void *ptr, long size));
+LIBUV_EXPORT void ev_set_allocator (void *(*cb)(void *ptr, long size));
 
 /* set the callback function to call on a
  * retryable syscall error
  * (such as failed select, poll, epoll_wait)
  */
-void ev_set_syserr_cb (void (*cb)(const char *msg));
+LIBUV_EXPORT void ev_set_syserr_cb (void (*cb)(const char *msg));
 
 #if EV_MULTIPLICITY
 
 /* the default loop is the only one that handles signals and child watchers */
 /* you can call this as often as you like */
-struct ev_loop *ev_default_loop (unsigned int flags EV_CPP (= 0));
+LIBUV_EXPORT struct ev_loop *ev_default_loop (unsigned int flags EV_CPP (= 0));
 
 EV_INLINE struct ev_loop *
 EV_MAYBE_UNUSED ev_default_loop_uc_ (void)
 {
-  extern struct ev_loop *ev_default_loop_ptr;
+  extern LIBUV_EXPORT struct ev_loop *ev_default_loop_ptr;
 
   return ev_default_loop_ptr;
 }
@@ -560,15 +579,15 @@ EV_MAYBE_UNUSED ev_is_default_loop (EV_P)
 }
 
 /* create and destroy alternative loops that don't handle signals */
-struct ev_loop *ev_loop_new (unsigned int flags EV_CPP (= 0));
+LIBUV_EXPORT struct ev_loop *ev_loop_new (unsigned int flags EV_CPP (= 0));
 
-int ev_loop_refcount (EV_P);
+LIBUV_EXPORT int ev_loop_refcount (EV_P);
 
-ev_tstamp ev_now (EV_P); /* time w.r.t. timers and the eventloop, updated after each poll */
+LIBUV_EXPORT ev_tstamp ev_now (EV_P); /* time w.r.t. timers and the eventloop, updated after each poll */
 
 #else
 
-int ev_default_loop (unsigned int flags EV_CPP (= 0)); /* returns true when successful */
+LIBUV_EXPORT int ev_default_loop (unsigned int flags EV_CPP (= 0)); /* returns true when successful */
 
 EV_INLINE ev_tstamp
 ev_now (void)
@@ -588,23 +607,23 @@ ev_is_default_loop (void)
 #endif /* multiplicity */
 
 /* destroy event loops, also works for the default loop */
-void ev_loop_destroy (EV_P);
+LIBUV_EXPORT void ev_loop_destroy (EV_P);
 
 /* this needs to be called after fork, to duplicate the loop */
 /* when you want to re-use it in the child */
 /* you can call it in either the parent or the child */
 /* you can actually call it at any time, anywhere :) */
-void ev_loop_fork (EV_P);
+LIBUV_EXPORT void ev_loop_fork (EV_P);
 
-unsigned int ev_backend (EV_P); /* backend in use by loop */
+LIBUV_EXPORT unsigned int ev_backend (EV_P); /* backend in use by loop */
 
-void ev_now_update (EV_P); /* update event loop time */
+LIBUV_EXPORT void ev_now_update (EV_P); /* update event loop time */
 
 #if EV_WALK_ENABLE
 /* walk (almost) all watchers in the loop of a given type, invoking the */
 /* callback on every such watcher. The callback might stop the watcher, */
 /* but do nothing else with the loop */
-void ev_walk (EV_P_ int types, void (*cb)(EV_P_ int type, void *w));
+LIBUV_EXPORT void ev_walk (EV_P_ int types, void (*cb)(EV_P_ int type, void *w));
 #endif
 
 #endif /* prototypes */
@@ -623,45 +642,45 @@ enum {
 };
 
 #if EV_PROTOTYPES
-void ev_run (EV_P_ int flags EV_CPP (= 0));
-void ev_break (EV_P_ int how EV_CPP (= EVBREAK_ONE)); /* break out of the loop */
+LIBUV_EXPORT void ev_run (EV_P_ int flags EV_CPP (= 0));
+LIBUV_EXPORT void ev_break (EV_P_ int how EV_CPP (= EVBREAK_ONE)); /* break out of the loop */
 
 /*
  * ref/unref can be used to add or remove a refcount on the mainloop. every watcher
  * keeps one reference. if you have a long-running watcher you never unregister that
  * should not keep ev_loop from running, unref() after starting, and ref() before stopping.
  */
-void ev_ref   (EV_P);
-void ev_unref (EV_P);
+LIBUV_EXPORT void ev_ref   (EV_P);
+LIBUV_EXPORT void ev_unref (EV_P);
 
 /*
  * convenience function, wait for a single event, without registering an event watcher
  * if timeout is < 0, do wait indefinitely
  */
-void ev_once (EV_P_ int fd, int events, ev_tstamp timeout, void (*cb)(int revents, void *arg), void *arg);
+LIBUV_EXPORT void ev_once (EV_P_ int fd, int events, ev_tstamp timeout, void (*cb)(int revents, void *arg), void *arg);
 
 # if EV_FEATURE_API
-unsigned int ev_iteration (EV_P); /* number of loop iterations */
-unsigned int ev_depth     (EV_P); /* #ev_loop enters - #ev_loop leaves */
-void         ev_verify    (EV_P); /* abort if loop data corrupted */
+LIBUV_EXPORT unsigned int ev_iteration (EV_P); /* number of loop iterations */
+LIBUV_EXPORT unsigned int ev_depth     (EV_P); /* #ev_loop enters - #ev_loop leaves */
+LIBUV_EXPORT void         ev_verify    (EV_P); /* abort if loop data corrupted */
 
-void ev_set_io_collect_interval (EV_P_ ev_tstamp interval); /* sleep at least this time, default 0 */
-void ev_set_timeout_collect_interval (EV_P_ ev_tstamp interval); /* sleep at least this time, default 0 */
+LIBUV_EXPORT void ev_set_io_collect_interval (EV_P_ ev_tstamp interval); /* sleep at least this time, default 0 */
+LIBUV_EXPORT void ev_set_timeout_collect_interval (EV_P_ ev_tstamp interval); /* sleep at least this time, default 0 */
 
 /* advanced stuff for threading etc. support, see docs */
-void ev_set_userdata (EV_P_ void *data);
-void *ev_userdata (EV_P);
-void ev_set_invoke_pending_cb (EV_P_ void (*invoke_pending_cb)(EV_P));
-void ev_set_loop_release_cb (EV_P_ void (*release)(EV_P), void (*acquire)(EV_P));
+LIBUV_EXPORT void ev_set_userdata (EV_P_ void *data);
+LIBUV_EXPORT void *ev_userdata (EV_P);
+LIBUV_EXPORT void ev_set_invoke_pending_cb (EV_P_ void (*invoke_pending_cb)(EV_P));
+LIBUV_EXPORT void ev_set_loop_release_cb (EV_P_ void (*release)(EV_P), void (*acquire)(EV_P));
 
-unsigned int ev_pending_count (EV_P); /* number of pending events, if any */
-void ev_invoke_pending (EV_P); /* invoke all pending watchers */
+LIBUV_EXPORT unsigned int ev_pending_count (EV_P); /* number of pending events, if any */
+LIBUV_EXPORT void ev_invoke_pending (EV_P); /* invoke all pending watchers */
 
 /*
  * stop/start the timer handling.
  */
-void ev_suspend (EV_P);
-void ev_resume  (EV_P);
+LIBUV_EXPORT void ev_suspend (EV_P);
+LIBUV_EXPORT void ev_resume  (EV_P);
 #endif
 
 #endif
@@ -728,85 +747,85 @@ void ev_resume  (EV_P);
 
 /* feeds an event into a watcher as if the event actually occured */
 /* accepts any ev_watcher type */
-void ev_feed_event     (EV_P_ void *w, int revents);
-void ev_feed_fd_event  (EV_P_ int fd, int revents);
+LIBUV_EXPORT void ev_feed_event     (EV_P_ void *w, int revents);
+LIBUV_EXPORT void ev_feed_fd_event  (EV_P_ int fd, int revents);
 #if EV_SIGNAL_ENABLE
-void ev_feed_signal    (int signum);
-void ev_feed_signal_event (EV_P_ int signum);
+LIBUV_EXPORT void ev_feed_signal    (int signum);
+LIBUV_EXPORT void ev_feed_signal_event (EV_P_ int signum);
 #endif
-void ev_invoke         (EV_P_ void *w, int revents);
-int  ev_clear_pending  (EV_P_ void *w);
+LIBUV_EXPORT void ev_invoke         (EV_P_ void *w, int revents);
+LIBUV_EXPORT int  ev_clear_pending  (EV_P_ void *w);
 
-void ev_io_start       (EV_P_ ev_io *w);
-void ev_io_stop        (EV_P_ ev_io *w);
+LIBUV_EXPORT void ev_io_start       (EV_P_ ev_io *w);
+LIBUV_EXPORT void ev_io_stop        (EV_P_ ev_io *w);
 
-void ev_timer_start    (EV_P_ ev_timer *w);
-void ev_timer_stop     (EV_P_ ev_timer *w);
+LIBUV_EXPORT void ev_timer_start    (EV_P_ ev_timer *w);
+LIBUV_EXPORT void ev_timer_stop     (EV_P_ ev_timer *w);
 /* stops if active and no repeat, restarts if active and repeating, starts if inactive and repeating */
-void ev_timer_again    (EV_P_ ev_timer *w);
+LIBUV_EXPORT void ev_timer_again    (EV_P_ ev_timer *w);
 /* return remaining time */
-ev_tstamp ev_timer_remaining (EV_P_ ev_timer *w);
+LIBUV_EXPORT ev_tstamp ev_timer_remaining (EV_P_ ev_timer *w);
 
 #if EV_PERIODIC_ENABLE
-void ev_periodic_start (EV_P_ ev_periodic *w);
-void ev_periodic_stop  (EV_P_ ev_periodic *w);
-void ev_periodic_again (EV_P_ ev_periodic *w);
+LIBUV_EXPORT void ev_periodic_start (EV_P_ ev_periodic *w);
+LIBUV_EXPORT void ev_periodic_stop  (EV_P_ ev_periodic *w);
+LIBUV_EXPORT void ev_periodic_again (EV_P_ ev_periodic *w);
 #endif
 
 /* only supported in the default loop */
 #if EV_SIGNAL_ENABLE
-void ev_signal_start   (EV_P_ ev_signal *w);
-void ev_signal_stop    (EV_P_ ev_signal *w);
+LIBUV_EXPORT void ev_signal_start   (EV_P_ ev_signal *w);
+LIBUV_EXPORT void ev_signal_stop    (EV_P_ ev_signal *w);
 #endif
 
 /* only supported in the default loop */
 # if EV_CHILD_ENABLE
-void ev_child_start    (EV_P_ ev_child *w);
-void ev_child_stop     (EV_P_ ev_child *w);
+LIBUV_EXPORT void ev_child_start    (EV_P_ ev_child *w);
+LIBUV_EXPORT void ev_child_stop     (EV_P_ ev_child *w);
 # endif
 
 # if EV_STAT_ENABLE
-void ev_stat_start     (EV_P_ ev_stat *w);
-void ev_stat_stop      (EV_P_ ev_stat *w);
-void ev_stat_stat      (EV_P_ ev_stat *w);
+LIBUV_EXPORT void ev_stat_start     (EV_P_ ev_stat *w);
+LIBUV_EXPORT void ev_stat_stop      (EV_P_ ev_stat *w);
+LIBUV_EXPORT void ev_stat_stat      (EV_P_ ev_stat *w);
 # endif
 
 # if EV_IDLE_ENABLE
-void ev_idle_start     (EV_P_ ev_idle *w);
-void ev_idle_stop      (EV_P_ ev_idle *w);
+LIBUV_EXPORT void ev_idle_start     (EV_P_ ev_idle *w);
+LIBUV_EXPORT void ev_idle_stop      (EV_P_ ev_idle *w);
 # endif
 
 #if EV_PREPARE_ENABLE
-void ev_prepare_start  (EV_P_ ev_prepare *w);
-void ev_prepare_stop   (EV_P_ ev_prepare *w);
+LIBUV_EXPORT void ev_prepare_start  (EV_P_ ev_prepare *w);
+LIBUV_EXPORT void ev_prepare_stop   (EV_P_ ev_prepare *w);
 #endif
 
 #if EV_CHECK_ENABLE
-void ev_check_start    (EV_P_ ev_check *w);
-void ev_check_stop     (EV_P_ ev_check *w);
+LIBUV_EXPORT void ev_check_start    (EV_P_ ev_check *w);
+LIBUV_EXPORT void ev_check_stop     (EV_P_ ev_check *w);
 #endif
 
 # if EV_FORK_ENABLE
-void ev_fork_start     (EV_P_ ev_fork *w);
-void ev_fork_stop      (EV_P_ ev_fork *w);
+LIBUV_EXPORT void ev_fork_start     (EV_P_ ev_fork *w);
+LIBUV_EXPORT void ev_fork_stop      (EV_P_ ev_fork *w);
 # endif
 
 # if EV_CLEANUP_ENABLE
-void ev_cleanup_start  (EV_P_ ev_cleanup *w);
-void ev_cleanup_stop   (EV_P_ ev_cleanup *w);
+LIBUV_EXPORT void ev_cleanup_start  (EV_P_ ev_cleanup *w);
+LIBUV_EXPORT void ev_cleanup_stop   (EV_P_ ev_cleanup *w);
 # endif
 
 # if EV_EMBED_ENABLE
 /* only supported when loop to be embedded is in fact embeddable */
-void ev_embed_start    (EV_P_ ev_embed *w);
-void ev_embed_stop     (EV_P_ ev_embed *w);
-void ev_embed_sweep    (EV_P_ ev_embed *w);
+LIBUV_EXPORT void ev_embed_start    (EV_P_ ev_embed *w);
+LIBUV_EXPORT void ev_embed_stop     (EV_P_ ev_embed *w);
+LIBUV_EXPORT void ev_embed_sweep    (EV_P_ ev_embed *w);
 # endif
 
 # if EV_ASYNC_ENABLE
-void ev_async_start    (EV_P_ ev_async *w);
-void ev_async_stop     (EV_P_ ev_async *w);
-void ev_async_send     (EV_P_ ev_async *w);
+LIBUV_EXPORT void ev_async_start    (EV_P_ ev_async *w);
+LIBUV_EXPORT void ev_async_stop     (EV_P_ ev_async *w);
+LIBUV_EXPORT void ev_async_send     (EV_P_ ev_async *w);
 # endif
 
 #if EV_COMPAT3

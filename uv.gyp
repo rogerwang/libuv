@@ -24,7 +24,8 @@
   'targets': [
     {
       'target_name': 'uv',
-      'type': '<(library)',
+      'type': '<(component)',
+      'toolsets': ['host', 'target'],
       'include_dirs': [
         'include',
         'include/uv-private',

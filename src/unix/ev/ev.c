@@ -725,7 +725,7 @@ typedef struct
   #include "ev_wrap.h"
 
   static struct ev_loop default_loop_struct;
-  struct ev_loop *ev_default_loop_ptr;
+  struct LIBUV_EXPORT ev_loop *ev_default_loop_ptr;
 
 #else
 
@@ -734,7 +734,7 @@ typedef struct
     #include "ev_vars.h"
   #undef VAR
 
-  static int ev_default_loop_ptr;
+  LIBUV_EXPORT int ev_default_loop_ptr;
 
 #endif
 

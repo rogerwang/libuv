@@ -120,6 +120,11 @@ char** uv_setup_args(int argc, char** argv) {
   char *s;
   int i;
 
+  process_title.str = "node";
+  process_title.len = 4;
+
+  return argv;
+
   for (envc = 0; environ[envc]; envc++);
 
   s = envc ? environ[envc - 1] : argv[argc - 1];
@@ -143,7 +148,11 @@ char** uv_setup_args(int argc, char** argv) {
   memcpy(s, process_title.str, process_title.len);
 
   for (i = 0; i < argc; i++)
-    new_argv[i] = s + (argv[i] - argv[0]);
+    if (argv[i])
+      new_argv[i] = s + (argv[i] - argv[0]);
+    else
+      new_argv[i] = NULL;
+
   new_argv[argc] = NULL;
 
   s += environ[0] - argv[0];
