@@ -128,6 +128,11 @@ typedef int (WSAAPI* LPFN_WSARECVFROM)
              LPWSAOVERLAPPED overlapped,
              LPWSAOVERLAPPED_COMPLETION_ROUTINE completion_routine);
 
+#ifndef _NTDEF_
+  typedef LONG NTSTATUS;
+  typedef NTSTATUS *PNTSTATUS;
+#endif
+
 typedef struct _AFD_POLL_HANDLE_INFO {
   HANDLE Handle;
   ULONG Events;
@@ -385,6 +390,8 @@ RB_HEAD(uv_timer_tree_s, uv_timer_s);
     /* Used in slow (fallback) mode */    \
     struct {                              \
       int select_events;                  \
+      HANDLE event_handle;                \
+      HANDLE wait_handle;                 \
     };                                    \
   };
 

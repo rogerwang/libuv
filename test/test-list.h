@@ -154,6 +154,7 @@ TEST_DECLARE   (strlcpy)
 TEST_DECLARE   (strlcat)
 TEST_DECLARE   (counters_init)
 TEST_DECLARE   (dlerror)
+TEST_DECLARE   (poll)
 #ifdef _WIN32
 TEST_DECLARE   (spawn_detect_pipe_name_collisions_on_windows)
 TEST_DECLARE   (argument_escaping)
@@ -162,7 +163,6 @@ TEST_DECLARE   (listen_with_simultaneous_accepts)
 TEST_DECLARE   (listen_no_simultaneous_accepts)
 TEST_DECLARE   (fs_stat_root)
 #endif
-TEST_DECLARE   (test2)
 HELPER_DECLARE (tcp4_echo_server)
 HELPER_DECLARE (tcp6_echo_server)
 HELPER_DECLARE (udp4_echo_server)
@@ -305,6 +305,8 @@ TASK_LIST_START
   TEST_ENTRY  (getsockname_tcp)
   TEST_ENTRY  (getsockname_udp)
 
+  TEST_ENTRY  (poll)
+
   TEST_ENTRY  (spawn_exit_code)
   TEST_ENTRY  (spawn_stdout)
   TEST_ENTRY  (spawn_stdin)
@@ -358,8 +360,6 @@ TASK_LIST_START
   TEST_ENTRY  (strlcat)
   TEST_ENTRY  (counters_init)
   TEST_ENTRY  (dlerror)
-
-  TEST_ENTRY  (test2)
 #if 0
   /* These are for testing the test runner. */
   TEST_ENTRY  (fail_always)
