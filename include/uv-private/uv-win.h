@@ -146,6 +146,7 @@ typedef struct _AFD_POLL_INFO {
   AFD_POLL_HANDLE_INFO Handles[1];
 } AFD_POLL_INFO, *PAFD_POLL_INFO;
 
+#define UV_MSAFD_PROVIDER_COUNT 3
 
 /**
  * It should be possible to cast uv_buf_t[] to WSABUF[]
@@ -217,6 +218,9 @@ RB_HEAD(uv_timer_tree_s, uv_timer_s);
   uv_prepare_t* next_prepare_handle;                                          \
   uv_check_t* next_check_handle;                                              \
   uv_idle_t* next_idle_handle;                                                \
+  /* This handle holds the peer sockets for the fast variant of uv_poll_t */  \
+  SOCKET poll_peer_sockets[UV_MSAFD_PROVIDER_COUNT];                          \
+  /* State used by uv_ares. */                                                \
   ares_channel ares_chan;                                                     \
   int ares_active_sockets;                                                    \
   uv_timer_t ares_polling_timer;                                              \
@@ -386,6 +390,7 @@ RB_HEAD(uv_timer_tree_s, uv_timer_s);
     /* Used in fast mode */               \
     struct {                              \
       AFD_POLL_INFO afd_poll_info;        \
+      SOCKET peer_socket;                 \
     };                                    \
     /* Used in slow (fallback) mode */    \
     struct {                              \

@@ -470,7 +470,8 @@ int WSAAPI uv_wsarecvfrom_workaround(SOCKET socket, WSABUF* buffers,
 }
 
 
-int WSAAPI uv_msafd_poll(AFD_POLL_INFO* info, OVERLAPPED* overlapped) {
+int WSAAPI uv_msafd_poll(SOCKET socket, AFD_POLL_INFO* info,
+    OVERLAPPED* overlapped) {
   IO_STATUS_BLOCK iosb;
   IO_STATUS_BLOCK* iosb_ptr;
   HANDLE event = NULL;
@@ -500,7 +501,7 @@ int WSAAPI uv_msafd_poll(AFD_POLL_INFO* info, OVERLAPPED* overlapped) {
   }
 
   iosb_ptr->Status = STATUS_PENDING;
-  status = pNtDeviceIoControlFile(info->Handles[0].Handle,
+  status = pNtDeviceIoControlFile((HANDLE) socket,
                                   event,
                                   NULL,
                                   apc_context,

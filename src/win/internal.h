@@ -85,6 +85,7 @@ void uv_process_timers(uv_loop_t* loop);
 /* Only used by uv_poll_t handles. */
 #define UV_HANDLE_POLL_CANCELED                 0x01000000
 #define UV_HANDLE_POLL_SLOW                     0x02000000
+#define UV_HANDLE_POLL_ASSUME_WRITABLE          0x04000000
 
 
 void uv_want_endgame(uv_loop_t* loop, uv_handle_t* handle);
@@ -357,7 +358,8 @@ int WSAAPI uv_wsarecvfrom_workaround(SOCKET socket, WSABUF* buffers,
     int* addr_len, WSAOVERLAPPED *overlapped,
     LPWSAOVERLAPPED_COMPLETION_ROUTINE completion_routine);
 
-int WSAAPI uv_msafd_poll(AFD_POLL_INFO* info, OVERLAPPED* overlapped);
+int WSAAPI uv_msafd_poll(SOCKET socket, AFD_POLL_INFO* info,
+    OVERLAPPED* overlapped);
 
 /* Whether ipv6 is supported */
 extern int uv_allow_ipv6;

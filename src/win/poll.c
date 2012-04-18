@@ -27,6 +27,13 @@
 #include "../uv-common.h"
 #include "internal.h"
 
+
+static const GUID uv_msafd_provider_ids[UV_MSAFD_PROVIDER_COUNT] = {
+  {0xe70f1aa0, 0xab8b, 0x11cf, {0x8c, 0xa3, 0x00, 0x80, 0x5f, 0x48, 0xa1, 0x92}},
+  {0xf9eab0c0, 0x26d4, 0x11d0, {0xbb, 0xbf, 0x00, 0xaa, 0x00, 0x6c, 0x34, 0xe4}},
+  {0x9fc48064, 0x7298, 0x43e4, {0xb7, 0xbd, 0x18, 0x1f, 0x20, 0x89, 0x79, 0x2a}}
+};
+
 typedef struct uv_single_fd_set_s {
   unsigned int fd_count;
   SOCKET fd_array[1];
@@ -38,8 +45,75 @@ int uv_poll_init(uv_loop_t* loop, uv_poll_t* handle, int fd) {
 }
 
 
+static SOCKET uv__fast_poll_create_peer_socket(HANDLE iocp, WSAPROTOCOL_INFOW* protocol_info) {
+  SOCKET sock = 0;
+
+  sock = WSASocketW(protocol_info->iAddressFamily,
+                    protocol_info->iSocketType,
+                    protocol_info->iProtocol,
+                    protocol_info,
+                    0,
+                    WSA_FLAG_OVERLAPPED);
+  if (sock == INVALID_SOCKET) {
+    return INVALID_SOCKET;
+  }
+
+  if (!SetHandleInformation((HANDLE) sock, HANDLE_FLAG_INHERIT, 0)) {
+    goto error;
+  };
+
+  if (CreateIoCompletionPort((HANDLE) sock,
+                              iocp,
+                              (ULONG_PTR) sock,
+                              0) == NULL) {
+    goto error;
+  }
+
+  return sock;
+
+ error:
+  closesocket(sock);
+  return INVALID_SOCKET;
+}
+
+
+static SOCKET uv__fast_poll_get_peer_socket(uv_loop_t* loop, WSAPROTOCOL_INFOW* protocol_info) {
+  int index, i;
+  SOCKET peer_socket;
+
+  index = -1;
+  for (i = 0; i < ARRAY_SIZE(uv_msafd_provider_ids); i++) {
+    if (memcmp((void*) &protocol_info->ProviderId,
+               (void*) &uv_msafd_provider_ids[i],
+               sizeof protocol_info->ProviderId) == 0) {
+      index = i;
+    }
+  }
+
+  /* Check if the protocol uses an msafd socket. */
+  if (1||index < 0) {
+    return INVALID_SOCKET;
+  }
+
+  /* If we didn't (try) to create a peer socket yet, try to make one. Don't */
+  /* try again if the peer socket creation failed earlier for the same */
+  /* protocol. */
+  peer_socket = loop->poll_peer_sockets[index];
+  if (peer_socket == 0) {
+    peer_socket = uv__fast_poll_create_peer_socket(loop->iocp, protocol_info);
+    loop->poll_peer_sockets[index] = peer_socket;
+  }
+
+  return peer_socket;
+}
+
+
 int uv_poll_init_socket(uv_loop_t* loop, uv_poll_t* handle,
     uv_platform_socket_t socket) {
+  WSAPROTOCOL_INFOW protocol_info;
+  int len;
+  SOCKET peer_socket;
+
   handle->type = UV_POLL;
   handle->socket = socket;
   handle->loop = loop;
@@ -47,6 +121,40 @@ int uv_poll_init_socket(uv_loop_t* loop, uv_poll_t* handle,
   handle->events = 0;
   handle->submitted_events = 0;
 
+  /* Obtain the protocol information about the socket first. */
+  len = sizeof protocol_info;
+  if (getsockopt(socket,
+                 SOL_SOCKET,
+                 SO_PROTOCOL_INFOW,
+                 (char*) &protocol_info,
+                 &len) != 0) {
+    uv__set_sys_error(loop, WSAGetLastError());
+    return -1;
+  }
+
+  /* Get the peer socket that is needed to enable fast poll. If the returned */
+  /* value is NULL, the protocol is not implemented by MSAFD and we'll have */
+  /* to use slow mode. */
+  peer_socket = uv__fast_poll_get_peer_socket(loop, &protocol_info);
+
+  if (peer_socket != INVALID_SOCKET) {
+    /* Initialize fast poll specific fields. */
+    handle->peer_socket = peer_socket;
+
+  } else {
+    /* Initialize slow poll specific fields. */
+    handle->flags |= UV_HANDLE_POLL_SLOW;
+    handle->select_events = 0;
+    handle->wait_handle = NULL;
+
+    handle->event_handle = CreateEvent(NULL, FALSE, FALSE, NULL);
+    if (handle->event_handle == NULL) {
+      uv__set_sys_error(loop, GetLastError());
+      return -1;
+    }
+  }
+
+  /* Initialize the poll req. */
   uv_req_init(loop, (uv_req_t*) &(handle->poll_req));
   handle->poll_req.type = UV_POLL_REQ;
   handle->poll_req.data = handle;
@@ -55,32 +163,6 @@ int uv_poll_init_socket(uv_loop_t* loop, uv_poll_t* handle,
 
   loop->counters.handle_init++;
   loop->counters.poll_init++;
-
-  /* TODO: check if the socket is an msafd protocol. */
-
-
-  /* Try to associate with IOCP */
-  if (1||CreateIoCompletionPort((HANDLE) socket,
-                              loop->iocp,
-                              (ULONG_PTR) socket,
-                              0) == NULL) {
-    /* Association failed. Use slow poll mode. */
-    handle->flags |= UV_HANDLE_POLL_SLOW;
-  }
-
-  if (!(handle->flags & UV_HANDLE_POLL_SLOW)) {
-    /* Initialize fast poll specific fields. */
-  } else {
-    /* Initialize slow poll specific fields. */
-    handle->select_events = 0;
-    handle->wait_handle = NULL;
-
-    handle->event_handle = CreateEvent(NULL, FALSE, FALSE, NULL);
-    if (handle->event_handle == NULL) {
-      uv__set_sys_error(loop, GetLastError());
-
-    }
-  }
 
   return 0;
 }
@@ -108,7 +190,7 @@ static void uv__fast_poll_submit_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
 
   memset(&req->overlapped, 0, sizeof req->overlapped);
 
-  result = uv_msafd_poll(&handle->afd_poll_info, &req->overlapped);
+  result = uv_msafd_poll(handle->peer_socket, &handle->afd_poll_info, &req->overlapped);
   if (result != 0 && WSAGetLastError() != WSA_IO_PENDING) {
     /* Queue this req, reporting an error. */
     SET_REQ_ERROR(&handle->poll_req, WSAGetLastError());
@@ -137,8 +219,8 @@ static int uv__fast_poll_cancel_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
     afd_poll_info.Handles[0].Handle = (HANDLE) handle->socket;
     afd_poll_info.Handles[0].Status = 0;
     afd_poll_info.Handles[0].Events = AFD_POLL_LOCAL_CLOSE;
-  
-    result = uv_msafd_poll(&afd_poll_info, NULL);
+
+    result = uv_msafd_poll(handle->peer_socket, &afd_poll_info, NULL);
     if (result != 0) {
       uv__set_sys_error(loop, WSAGetLastError());
       return -1;
@@ -151,8 +233,6 @@ static int uv__fast_poll_cancel_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
 
 
 static void uv__fast_poll_process_poll_req(uv_loop_t* loop, uv_poll_t* handle, uv_req_t* req) {
-  handle->flags &= ~UV_HANDLE_POLL_CANCELED;
-
   /* Report an error unless the select was just interrupted. */
   if (!REQ_SUCCESS(req)) {
     DWORD error = GET_REQ_SOCK_ERROR(req);
@@ -173,7 +253,11 @@ static void uv__fast_poll_process_poll_req(uv_loop_t* loop, uv_poll_t* handle, u
 
     if ((reported_events & handle->events) != 0) {
       handle->poll_cb(handle, 0, reported_events);
+    } else {
+      printf("Looks cancelled, sir");
     }
+  } else {
+    printf("Looks cancelled, sir");
   }
 }
 
@@ -203,7 +287,7 @@ static void CALLBACK uv__slow_poll_thread_proc(VOID* arg, BOOLEAN didTimeout) {
 static void uv__slow_poll_submit_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
   DWORD eventsel_events;
   int r;
-  
+
   /* Because WSAEventSelect is edge-triggered wrt writability, we'll use */
   /* select() to find out if the socket is already writable. */
   uv_single_fd_set_t rfds, wfds, efds;
@@ -220,13 +304,22 @@ static void uv__slow_poll_submit_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
   /* This function never fails. If an error occurs, it will queue a */
   /* completed req that reports an error. So we can safely update the */
   /* submitted_events field already. */
-  handle->submitted_events = handle->events;  
-  
+  handle->submitted_events = handle->events;
+
   /* This field will be used to report socket state when WSAEventSelect is */
   /* bypassed. */
   handle->select_events = 0;
 
-  if (handle->events & FD_WRITE) {
+  /* While we're at it, we might just as well poll for readability. */
+  /* if we can detect events without using eventselect, that's nice. */
+  if (handle->events & UV_READABLE) {
+    rfds.fd_count = 1;
+    rfds.fd_array[0] = handle->socket;
+  } else {
+    rfds.fd_count = 0;
+  }
+
+  if (handle->events & UV_WRITABLE) {
     wfds.fd_count = 1;
     wfds.fd_array[0] = handle->socket;
     efds.fd_count = 1;
@@ -236,43 +329,38 @@ static void uv__slow_poll_submit_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
     efds.fd_count = 0;
   }
 
-  if (handle->events & FD_READ) {
-    rfds.fd_count = 1;
-    rfds.fd_array[0] = handle->socket;
-  } else {
-    rfds.fd_count =- 0;
-  }
-
   r = select(1, (fd_set*) &rfds, (fd_set*) &wfds, (fd_set*) &efds, &timeout);
   if (r == SOCKET_ERROR) {
     /* Queue this req, reporting an error. */
     SET_REQ_ERROR(&handle->poll_req, WSAGetLastError());
+    uv_insert_pending_req(loop, &handle->poll_req);
     return;
   }
 
-  if (r > 0) { 
+  if (r > 0) {
     if (rfds.fd_count > 0) {
       assert(rfds.fd_count == 1);
       assert(rfds.fd_array[0] == handle->socket);
-      handle->select_events |= FD_READ;
+      handle->select_events |= UV_READABLE;
     }
 
     if (wfds.fd_count > 0) {
       assert(wfds.fd_count == 1);
       assert(wfds.fd_array[0] == handle->socket);
-      handle->select_events |= FD_WRITE;
+      handle->select_events |= UV_WRITABLE;
     } else if (efds.fd_count > 0) {
       assert(efds.fd_count == 1);
       assert(efds.fd_array[0] == handle->socket);
-      handle->select_events |= FD_WRITE;
+      handle->select_events |= UV_WRITABLE;
     }
-      printf("Had a quicky\n");
+
+    printf("Had a quicky %d\n", handle->select_events);
     assert(handle->select_events != 0);
     SET_REQ_SUCCESS(&handle->poll_req);
     uv_insert_pending_req(loop, &handle->poll_req);
     return;
   }
-  
+
   eventsel_events = 0;
   if (handle->events & UV_READABLE) {
     eventsel_events |= FD_READ | FD_ACCEPT | FD_CLOSE;
@@ -313,13 +401,13 @@ static void uv__slow_poll_submit_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
     return;
   }
 
-  printf("Doing slow poll\n");
+  send(handle->socket, NULL, -1, 0);
+
+  printf("Doing slow poll %d\n", handle->events);
 }
 
 
 static int uv__slow_poll_cancel_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
-  DWORD r;
-
   assert(handle->submitted_events != 0);
 
   /* Don't cancel again if the poll was already canceled. */
@@ -330,11 +418,15 @@ static int uv__slow_poll_cancel_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
   /* force the wait thread to do anything. */
   if (handle->select_events == 0) {
     /* Manually set the event, forcing it to satisfy the wait. */
-    r = SetEvent(handle->event_handle);
-    if (r != 0) {
+    printf("Cancelling slow event poll\n");
+    if (!SetEvent(handle->event_handle)) {
       uv_fatal_error(GetLastError(), "SetEvent");
     }
   }
+
+  /* Disassociate the socket from the event. This allows the user to close */
+  /* the socket when the watcher is stopped. */
+  WSAEventSelect(handle->socket, handle->event_handle, 0);
 
   handle->flags |= UV_HANDLE_POLL_CANCELED;
   return 0;
@@ -359,8 +451,7 @@ static void uv__slow_poll_process_poll_req(uv_loop_t* loop, uv_poll_t* handle, u
     int reported_events = handle->select_events;
 
     handle->select_events = 0;
-    handle->flags &= ~UV_HANDLE_POLL_CANCELED;
-    
+
     r = WSAEnumNetworkEvents(handle->socket, handle->event_handle, &eventsel_reported_events);
     if (r != 0)  {
       if (handle->events != 0) {
@@ -370,16 +461,19 @@ static void uv__slow_poll_process_poll_req(uv_loop_t* loop, uv_poll_t* handle, u
       }
       return;
     }
-    
+
     if (eventsel_reported_events.lNetworkEvents & (FD_READ | FD_ACCEPT | FD_CLOSE)) {
       reported_events |= UV_READABLE;
     }
     if (eventsel_reported_events.lNetworkEvents & FD_WRITE) {
       reported_events |= UV_WRITABLE;
+      handle->flags |= UV_HANDLE_POLL_ASSUME_WRITABLE;
     }
 
     if ((reported_events & handle->events) != 0) {
       handle->poll_cb(handle, 0, reported_events);
+    } else {
+      printf("Poll looks canceled\n");
     }
   }
 }
@@ -397,7 +491,7 @@ static int uv__poll_cancel_poll_req(uv_loop_t* loop, uv_poll_t* handle) {
   if (!(handle->flags & UV_HANDLE_POLL_SLOW)) {
     return uv__fast_poll_cancel_poll_req(loop, handle);
   } else {
-    return uv__fast_poll_cancel_poll_req(loop, handle);
+    return uv__slow_poll_cancel_poll_req(loop, handle);
   }
 }
 
@@ -422,7 +516,7 @@ static int uv__poll_set(uv_loop_t* loop, uv_poll_t* handle, int events) {
     /* included in the submitted poll mask, the poll operation has to be */
     /* interrupted or it might block indefinitely. Be careful not to cancel */
     /* a poll request that already has been canceled. */
-    if ((handle->submitted_events & events) != events && 
+    if ((handle->submitted_events & events) != events &&
         uv__poll_cancel_poll_req(loop, handle) != 0) {
       return -1;
     }
@@ -457,6 +551,7 @@ int uv_poll_start(uv_poll_t* handle, int events, uv_poll_cb cb) {
 
 void uv_process_poll_req(uv_loop_t* loop, uv_poll_t* handle, uv_req_t* req) {
   handle->submitted_events = 0;
+  handle->flags &= ~UV_HANDLE_POLL_CANCELED;
 
   if (!(handle->flags & UV_HANDLE_POLL_SLOW)) {
     uv__fast_poll_process_poll_req(loop, handle, req);
@@ -490,7 +585,6 @@ void uv_poll_endgame(uv_loop_t* loop, uv_poll_t* handle) {
     handle->flags |= UV_HANDLE_CLOSED;
 
     if (handle->flags & UV_HANDLE_POLL_SLOW) {
-      WSAEventSelect(handle->socket, handle->event_handle, 0);
       CloseHandle(handle->event_handle);
     }
 
