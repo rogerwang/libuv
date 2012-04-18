@@ -24,7 +24,7 @@
   'targets': [
     {
       'target_name': 'uv',
-      'type': '<(component)',
+      'type': 'shared_library',
       'toolsets': ['host', 'target'],
       'include_dirs': [
         'include',
@@ -41,7 +41,8 @@
       },
 
       'defines': [
-        'HAVE_CONFIG_H'
+        'HAVE_CONFIG_H',
+        'COMPONENT_BUILD',
       ],
       'sources': [
         'common.gypi',
