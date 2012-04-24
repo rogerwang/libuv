@@ -1366,8 +1366,8 @@ void uv_process_pipe_read_req(uv_loop_t* loop, uv_pipe_t* handle,
             continue;
           }
         } else {
-          if (avail > (DWORD)handle->remaining_ipc_rawdata_bytes)
-            avail = (DWORD)handle->remaining_ipc_rawdata_bytes;
+			if (avail > (DWORD)handle->remaining_ipc_rawdata_bytes)
+				avail = (DWORD)handle->remaining_ipc_rawdata_bytes;
         }
       }
 

@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #include <sys/utime.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "uv.h"
 #include "internal.h"

@@ -24,7 +24,7 @@
   'targets': [
     {
       'target_name': 'uv',
-      'type': 'shared_library',
+      'type': '<(component)',
       'toolsets': ['host', 'target'],
       'include_dirs': [
         'include',
