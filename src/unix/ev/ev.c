@@ -1591,13 +1591,15 @@ ev_recommended_backends (void)
   unsigned int flags = ev_supported_backends ();
 
 #ifndef __NetBSD__
+#ifndef __APPLE__
   /* kqueue is borked on everything but netbsd apparently */
   /* it usually doesn't work correctly on anything but sockets and pipes */
   flags &= ~EVBACKEND_KQUEUE;
 #endif
+#endif
 #ifdef __APPLE__
   /* only select works correctly on that "unix-certified" platform */
-  flags &= ~EVBACKEND_KQUEUE; /* horribly broken, even for sockets */
+  /*flags &= ~EVBACKEND_KQUEUE; */ /* horribly broken, even for sockets */
   flags &= ~EVBACKEND_POLL;   /* poll is based on kqueue from 10.5 onwards */
 #endif
 #ifdef __FreeBSD__
@@ -2117,6 +2119,13 @@ ev_loop_fork (EV_P)
 
 /*****************************************************************************/
 
+ev_tstamp next_waittime  = 0.;
+
+ev_tstamp
+ev_next_waittime() {
+  return next_waittime;
+}
+
 void
 ev_invoke (EV_P_ void *w, int revents)
 {
@@ -2536,12 +2545,41 @@ ev_run (EV_P_ int flags)
 #if EV_FEATURE_API
   --loop_depth;
 #endif
+
+  // Compute the next waiting time.
+  ev_tstamp waittime = MAX_BLOCKTIME;
+
+  if (timercnt)
+  {
+    ev_tstamp to = ANHE_at (timers [HEAP0]) - mn_now + backend_fudge;
+    if (waittime > to) waittime = to;
+  }
+
+#if EV_PERIODIC_ENABLE
+  if (periodiccnt)
+  {
+    ev_tstamp to = ANHE_at (periodics [HEAP0]) - ev_rt_now + backend_fudge;
+    if (waittime > to) waittime = to;
+  }
+#endif
+
+  next_waittime = waittime;
 }
 
 void
 ev_break (EV_P_ int how)
 {
   loop_done = how;
+}
+
+int ev_backend_fd(EV_P)
+{
+  return backend_fd;
+}
+
+int ev_backend_changecount(EV_P)
+{
+  return kqueue_changecnt;
 }
 
 void

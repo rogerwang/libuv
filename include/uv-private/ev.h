@@ -851,6 +851,10 @@ LIBUV_EXPORT void ev_async_send     (EV_P_ ev_async *w);
 
 #endif
 
+LIBUV_EXPORT int ev_backend_fd(EV_P);
+LIBUV_EXPORT int ev_backend_changecount(EV_P);
+LIBUV_EXPORT ev_tstamp ev_next_waittime();
+
 EV_CPP(})
 
 #endif

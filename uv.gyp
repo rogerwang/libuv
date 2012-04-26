@@ -219,7 +219,13 @@
           'defines': [
             'EV_CONFIG_H="config_darwin.h"',
             'EIO_CONFIG_H="config_darwin.h"',
-          ]
+          ],
+          'xcode_settings': {
+            'OTHER_LDFLAGS': [
+               '-framework Carbon',
+            ],
+          },
+          
         }],
         [ 'OS=="linux"', {
           'include_dirs': [ 'src/ares/config_linux' ],
