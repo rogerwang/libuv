@@ -2121,10 +2121,12 @@ ev_loop_fork (EV_P)
 
 ev_tstamp next_waittime  = 0.;
 
+#if defined (__APPLE__)
 ev_tstamp
 ev_next_waittime() {
   return next_waittime;
 }
+#endif
 
 void
 ev_invoke (EV_P_ void *w, int revents)
@@ -2572,6 +2574,8 @@ ev_break (EV_P_ int how)
   loop_done = how;
 }
 
+#if defined (__APPLE__)
+
 int ev_backend_fd(EV_P)
 {
   return backend_fd;
@@ -2581,6 +2585,8 @@ int ev_backend_changecount(EV_P)
 {
   return kqueue_changecnt;
 }
+
+#endif
 
 void
 ev_ref (EV_P)
