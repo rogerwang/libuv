@@ -26,11 +26,12 @@
 #ifndef  UV_TREE_H_
 #define  UV_TREE_H_
 
-#ifndef __unused
-#if __GNUC__
-# define __unused __attribute__((unused))
-#else
-# define __unused
+#ifndef UV__UNUSED
+# if __GNUC__
+#  define UV__UNUSED __attribute__((unused))
+# else
+#  define UV__UNUSED
+# endif
 #endif
 #endif
 
@@ -383,7 +384,7 @@ struct {                                                                      \
 #define  RB_PROTOTYPE(name, type, field, cmp)                                 \
   RB_PROTOTYPE_INTERNAL(name, type, field, cmp,)
 #define  RB_PROTOTYPE_STATIC(name, type, field, cmp)                          \
-  RB_PROTOTYPE_INTERNAL(name, type, field, cmp, __unused static)
+  RB_PROTOTYPE_INTERNAL(name, type, field, cmp, UV__UNUSED static)
 #define RB_PROTOTYPE_INTERNAL(name, type, field, cmp, attr)                   \
 attr void name##_RB_INSERT_COLOR(struct name *, struct type *);               \
 attr void name##_RB_REMOVE_COLOR(struct name *, struct type *, struct type *);\
@@ -402,7 +403,7 @@ attr struct type *name##_RB_MINMAX(struct name *, int);                       \
 #define  RB_GENERATE(name, type, field, cmp)                                  \
   RB_GENERATE_INTERNAL(name, type, field, cmp,)
 #define  RB_GENERATE_STATIC(name, type, field, cmp)                           \
-  RB_GENERATE_INTERNAL(name, type, field, cmp, __unused static)
+  RB_GENERATE_INTERNAL(name, type, field, cmp, UV__UNUSED static)
 #define RB_GENERATE_INTERNAL(name, type, field, cmp, attr)                    \
 attr void                                                                     \
 name##_RB_INSERT_COLOR(struct name *head, struct type *elm)                   \

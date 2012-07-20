@@ -73,6 +73,7 @@ uint64_t uv_hrtime() {
 int uv_exepath(char* buffer, size_t* size) {
   uint32_t usize;
   int result;
+  char* path;
   char* fullpath;
 
   if (!buffer || !size) {
@@ -83,9 +84,11 @@ int uv_exepath(char* buffer, size_t* size) {
   result = _NSGetExecutablePath(buffer, &usize);
   if (result) return result;
 
-  fullpath = realpath(buffer, NULL);
+  path = (char*)malloc(2 * PATH_MAX);
+  fullpath = realpath(buffer, path);
 
   if (fullpath == NULL) {
+    free(path);
     return -1;
   }
 
@@ -208,7 +211,8 @@ uv_err_t uv_cpu_info(uv_cpu_info_t** cpu_infos, int* count) {
   uv_cpu_info_t* cpu_info;
 
   size = sizeof(model);
-  if (sysctlbyname("hw.model", &model, &size, NULL, 0) < 0) {
+  if (sysctlbyname("machdep.cpu.brand_string", &model, &size, NULL, 0) < 0 &&
+      sysctlbyname("hw.model", &model, &size, NULL, 0) < 0) {
     return uv__new_sys_error(errno);
   }
   size = sizeof(cpuspeed);
