@@ -33,7 +33,6 @@
 #  define UV__UNUSED
 # endif
 #endif
-#endif
 
 /*
  * This file defines data structures for different types of trees:
